@@ -1,6 +1,6 @@
-from model import Model
+from environment import Environment
 
 if __name__ == '__main__':
 
-    model = Model()
-    model.run()
+    env = Environment()
+    env.run()
