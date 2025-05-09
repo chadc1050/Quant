@@ -25,6 +25,8 @@ struct RNN {
 
         w_i_h = LinearLib::Matrix<H, I, float>::random(0, 1, seed);
         w_h_o = LinearLib::Matrix<O, H, float>::random(0, 1, seed);
+
+        b_i_h = LinearLib::Matrix<H, 1, float>::zeros();
         b_h_o = LinearLib::Matrix<O, 1, float>::zeros();
     }
 
