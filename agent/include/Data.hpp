@@ -19,14 +19,13 @@ struct ConnectionPool {
             for (uint i = 0; i < N; i++) {
                 connections[i] = std::move(init());
             }
-
         } catch (sql::SQLException &e) {
             std::cout << "Error loading driver: " << e.what() << std::endl;
             throw;
         }
     }
 
-    std::shared_ptr<sql::Connection> init() {
+    [[nodiscard]] std::shared_ptr<sql::Connection> init() const {
         std::shared_ptr<sql::Connection> conn(driver->connect("tcp://192.168.1.189:3306", "root", "password"));
         conn->setSchema("financial_data");
         return conn;
@@ -50,7 +49,7 @@ struct VixData {
 struct Data {
     std::shared_ptr<ConnectionPool<10>> pool = std::make_shared<ConnectionPool<10>>();
 
-    std::vector<VixData> getVixData() {
+    [[nodiscard]] std::vector<VixData> getVixData() const {
 
         const std::shared_ptr<sql::Connection> conn = pool->get();
 

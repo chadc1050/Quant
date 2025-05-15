@@ -2,18 +2,19 @@
 
 #include <array>
 #include <cassert>
-#include <format>
 #include <functional>
 #include <initializer_list>
 #include <random>
 #include <type_traits>
 #include <ranges>
 
+#include "Vector.hpp"
+
 namespace LinearLib {
     template<std::size_t R, std::size_t C, typename T>
-    requires std::is_arithmetic_v<T> && (R > 0) && (C > 0)
+    requires std::is_arithmetic_v<T>
     struct Matrix {
-        std::array<std::array<T, C>, R> data;
+        std::array<Vector<C, T>, R> data;
 
         Matrix(std::initializer_list<std::initializer_list<T>> init) {
             assert(init.size() == R && "Initializer list size must match vector dimension");
@@ -26,6 +27,23 @@ namespace LinearLib {
 
         // Default constructor is still needed
         Matrix() = default;
+
+        // Iterator methods
+        typename std::array<Vector<C, T>, R>::iterator begin() noexcept { return data.begin(); }
+        typename std::array<Vector<C, T>, R>::const_iterator begin() const noexcept { return data.begin(); }
+        typename std::array<Vector<C, T>, R>::const_iterator cbegin() const noexcept { return data.cbegin(); }
+
+        typename std::array<Vector<C, T>, R>::iterator end() noexcept { return data.end(); }
+        typename std::array<Vector<C, T>, R>::const_iterator end() const noexcept { return data.end(); }
+        typename std::array<Vector<C, T>, R>::const_iterator cend() const noexcept { return data.cend(); }
+
+        typename std::array<Vector<C, T>, R>::reverse_iterator rbegin() noexcept { return data.rbegin(); }
+        typename std::array<Vector<C, T>, R>::const_reverse_iterator rbegin() const noexcept { return data.rbegin(); }
+        typename std::array<Vector<C, T>, R>::const_reverse_iterator crbegin() const noexcept { return data.crbegin(); }
+
+        typename std::array<Vector<C, T>, R>::reverse_iterator rend() noexcept { return data.rend(); }
+        typename std::array<Vector<C, T>, R>::const_reverse_iterator rend() const noexcept { return data.rend(); }
+        typename std::array<Vector<C, T>, R>::const_reverse_iterator crend() const noexcept { return data.crend(); }
 
         static Matrix identity() {
             return eye(0);
@@ -71,10 +89,16 @@ namespace LinearLib {
             return res;
         }
 
-        static Matrix random(T const min, T const max, std::size_t const seed = 0) {
-            Matrix res;
+        static Matrix random(T const min, T const max, std::size_t const seed) {
+            return random(min, max, std::mt19937_64(seed));
+        }
 
-            std::mt19937_64 rng(seed);
+        static Matrix random(T const min, T const max) {
+            return random(min, max, std::random_device{}());
+        }
+
+        static Matrix random(T const min, T const max, std::mt19937_64 rng) {
+            Matrix res;
 
             if constexpr (std::is_integral_v<T>) {
                 std::uniform_int_distribution<T> dist(min, max);
@@ -144,7 +168,7 @@ namespace LinearLib {
 
             for (std::size_t i = 0; i < rows; i++) {
                 for (std::size_t j = 0; j < cols; j++) {
-                    res.data[i][j] = data[i * cols + j];
+                    res[i][j] = data[i * cols + j];
                 }
             }
 
@@ -212,11 +236,6 @@ namespace LinearLib {
             return true;
         }
 
-        std::array<std::array<T, C>, R> getData() const {
-            return data;
-        }
-
-
         void forEach(const std::function<void()>& func) {
             for (std::size_t i = 0; i < R; i++) {
                 for (std::size_t j = 0; j < C; j++) {
@@ -244,7 +263,7 @@ namespace LinearLib {
         bool operator==(const Matrix& other) const {
             for (std::size_t i = 0; i < R; i++) {
                 for (std::size_t j = 0; j < C; j++) {
-                    if (data[i][j] != other.data[i][j]) {
+                    if (data[i][j] != other[i][j]) {
                         return false;
                     }
                 }
@@ -253,76 +272,136 @@ namespace LinearLib {
             return true;
         }
 
-        std::array<T, C>& operator[](std::size_t index) {
+        Vector<C, T>& operator[](std::size_t index) {
             assert(index < R && "Index out of bounds");
             return data[index];
         }
 
-        const std::array<T, C>& operator[](std::size_t index) const {
+        const Vector<C, T>& operator[](std::size_t index) const {
             assert(index < R && "Index out of bounds");
             return data[index];
         }
 
-        Matrix operator+(const Matrix& other) const {
+        static Matrix add(const Matrix& lhs, const Matrix& rhs) {
             Matrix res;
 
             for (std::size_t i = 0; i < R; i++) {
-                for (std::size_t j = 0; j < C; j++) {
-                    res.data[i][j] = data[i][j] + other.data[i][j];
-                }
+                res[i] = lhs[i] + rhs[i];
             }
 
             return res;
         }
 
-        Matrix operator-(const Matrix& other) const {
+        friend Matrix operator+(const Matrix& lhs, const Matrix& rhs) {
+            return add(lhs, rhs);
+        }
+
+        Matrix operator+=(const Matrix& other) {
+            *this = *this + other;
+            return *this;
+        }
+
+        static Matrix subtract(const Matrix& minuend, const Matrix& subtrahend) {
             Matrix res;
 
             for (std::size_t i = 0; i < R; i++) {
-                for (std::size_t j = 0; j < C; j++) {
-                    res.data[i][j] = data[i][j] - other.data[i][j];
-                }
+                res[i] = minuend[i] - subtrahend[i];
             }
 
             return res;
         }
 
-        /**
-         * Element-wise multiplication
-         */
-        Matrix operator*(const Matrix& other) const {
+        friend Matrix operator-(const Matrix& minuend, const Matrix& subtrahend) {
+            return subtract(minuend, subtrahend);
+        }
 
+        Matrix operator-=(const Matrix& other) {
+            *this = *this - other;
+            return *this;
+        }
+
+
+        static Matrix multiply(const Matrix& multiplicand, const Matrix& multiplier) {
             Matrix res;
 
             for (std::size_t i = 0; i < R; i++) {
-                for (std::size_t j = 0; j < C; j++) {
-                    res.data[i][j] = data[i][j] * other[i][j];
-                }
+                res[i] = multiplicand[i] * multiplier[i];
             }
 
             return res;
         }
 
-        /**
-         * Scalar Multiplication
-         */
-        Matrix operator*(const T& scalar) const {
+        friend Matrix operator*(const Matrix& multiplicand, const Matrix& multiplier) {
+            return multiply(multiplicand, multiplier);
+        }
+
+        Matrix operator*=(const Matrix& other) {
+            *this = *this * other;
+            return *this;
+        }
+
+        static Matrix divide(Matrix const& dividend, Matrix const& divisor) {
             Matrix res;
 
             for (std::size_t i = 0; i < R; i++) {
-                for (std::size_t j = 0; j < C; j++) {
-                    res.data[i][j] = data[i][j] * scalar;
-                }
+                res[i] = dividend[i] / divisor[i];
             }
 
             return res;
+        }
+
+        friend Matrix operator/(const Matrix& dividend, const Matrix& divisor) {
+            return divide(dividend, divisor);
+        }
+
+        Matrix operator/=(const Matrix& other) {
+            *this = *this / other;
+            return *this;
+        }
+
+        static Matrix modulus(const Matrix& mat, const Matrix& mod) {
+            Matrix res;
+
+            for (std::size_t i = 0; i < R; i++) {
+                res[i] = mat[i] % mod[i];
+            }
+
+            return res;
+        }
+
+        friend Matrix operator%(const Matrix& mat, const Matrix& mod) {
+            return modulus(mat, mod);
+        }
+
+        Matrix operator%=(const Matrix& other) {
+            *this = *this % other;
+            return *this;
+        }
+
+        static Matrix multiply(const Matrix& mat, const T& scalar) {
+            Matrix res;
+
+            for (std::size_t i = 0; i < R; i++) {
+                res[i] = mat[i] * scalar;
+            }
+
+            return res;
+        }
+
+        friend Matrix operator*(const Matrix& mat, const T& scalar) {
+            return multiply(mat, scalar);
+        }
+
+        Matrix operator*=(const T& scalar) {
+            *this = *this * scalar;
+            return *this;
         }
 
         /**
          * Matrix Multiplication
          */
         template<std::size_t I>
-        Matrix<R, I, T> operator&(const Matrix<C, I, T>& other) const {
+        friend Matrix<R, I, T> operator&(const Matrix& lhs, const Matrix<C, I, T>& rhs) {
 
             Matrix<R, I, T> res;
 
@@ -330,14 +409,13 @@ namespace LinearLib {
                 for (std::size_t j = 0; j < I; j++) {
                     T sum = T{};
                     for (std::size_t k = 0; k < C; k++) {
-                        sum += data[i][k] * other.data[k][j];
+                        sum += lhs[i][k] * rhs[k][j];
                     }
-                    res.data[i][j] = sum;
+                    res[i][j] = sum;
                 }
             }
 
             return res;
         }
-
     };
 }
