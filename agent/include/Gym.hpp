@@ -16,14 +16,14 @@ struct Sample {
 };
 
 template<std::size_t I, std::size_t H, std::size_t O>
-struct Environment {
+struct Gym {
     unsigned int nEpochs;
     unsigned int patience;
     unsigned int currentEpoch = 0;
     int seed;
     RNN<I, H, O> model = RNN<I, H, O>(0.05f, 10.0f);
 
-    explicit Environment(const unsigned int nEpochs, const int patience = 20, const int seed = 42) {
+    explicit Gym(const unsigned int nEpochs, const int patience = 20, const int seed = 42) {
         this->nEpochs = nEpochs;
         this->patience = patience;
         this->seed = seed;
@@ -125,6 +125,10 @@ struct Environment {
         std::ifstream file;
         file.open(path.c_str());
         this->model = RNN<I, H, O>::import(file.rdbuf());
+    }
+
+    RNN<I, H, O> getModel() {
+        return model;
     }
 
     static float mse(const Sample<I, O>& sample, LinearLib::Matrix<O, 1, float> pred) {

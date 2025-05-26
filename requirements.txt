@@ -2,3 +2,5 @@ numpy==2.2.5
 pandas==2.2.3
 SQLAlchemy==2.0.40
 matplotlib==3.10.1
+scipy==1.15.3
+qfin==0.1.24

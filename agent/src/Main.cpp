@@ -1,4 +1,4 @@
-#include "Environment.hpp"
+#include "Gym.hpp"
 #include "Data.hpp"
 
 #include <algorithm>
@@ -27,7 +27,7 @@ std::vector<Sample<I, O>> generateSamples(const std::vector<VixData>& vix) {
 
 int main() {
 
-    Environment<32, 512, 1> env(1000);
+    Gym<32, 512, 1> env(1000);
 
     const auto data = Data();
 
