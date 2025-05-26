@@ -1,5 +1,5 @@
 # Quant
-This repository contains implementation and research of different financial trading strategies. 
+This repository contains research and implementations of different financial trading strategies. 
 
 ## Datasets
 1. [Options](https://www.dolthub.com/repositories/post-no-preference/options/data/master)
