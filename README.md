@@ -8,3 +8,5 @@ This repository contains research and implementations of different financial tra
 
 ## Research References
 1. [Deep Learning for Options Trading: An End-To-End Approach](https://arxiv.org/abs/2407.21791)
+2. [Optimal Stopping Methods for Investment Decisions: A Literature Review](https://www.mdpi.com/2227-7072/10/4/96)
+3. 

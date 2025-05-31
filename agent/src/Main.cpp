@@ -1,11 +1,13 @@
-#include "Gym.hpp"
-#include "Data.hpp"
+#include "Model/Gym.hpp"
+#include "Trader.hpp"
+#include "Data/DataStore.hpp"
 
 #include <algorithm>
 #include <random>
 
-template<std::size_t I, std::size_t O>
-std::vector<Sample<I, O>> generateSamples(const std::vector<VixData>& vix) {
+
+template<std::size_t I, std::size_t O, typename T>
+std::vector<Sample<I, O>> generateSamples(const std::vector<T>& vix) {
 
     std::vector<Sample<I, O>> samples;
 
@@ -25,15 +27,14 @@ std::vector<Sample<I, O>> generateSamples(const std::vector<VixData>& vix) {
     return samples;
 }
 
-int main() {
-
+void train() {
     Gym<32, 512, 1> env(1000);
 
-    const auto data = Data();
+    const auto data = DataStore();
 
-    const std::vector<VixData> vix = data.getVixData();
+    const std::vector<VixData> vix = data.getVix();
 
-    std::vector<Sample<32, 1>> samples = generateSamples<32, 1>(vix);
+    std::vector<Sample<32, 1>> samples = generateSamples<32, 1, VixData>(vix);
 
     const std::size_t trainingEndIdx = static_cast<size_t>(samples.size() * 0.8);
     const std::size_t validationStartIdx = trainingEndIdx;
@@ -44,6 +45,13 @@ int main() {
     env.train(trainingSamples);
 
     env.validate(validationSamples);
+}
+
+int main() {
+
+    Trader trader(100000.0f);
+
+    trader.start();
 
     return 0;
 }
