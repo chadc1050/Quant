@@ -36,7 +36,7 @@ void Trader::advance(const std::chrono::year_month_day date, const bool init) {
 
     // On expiration open new positions for next month at market open
     if (next.value() > nextThirdFriday(this->state.date)) {
-        std::cout << "WARNING: Missing expiration date, early closing positions!";
+        std::cout << "WARNING: Missing expiration date, early closing positions!" << std::endl;
 
         closePositions(true);
         createState(next.value());
@@ -56,7 +56,11 @@ void Trader::advance(const std::chrono::year_month_day date, const bool init) {
 }
 
 void Trader::end() {
-    std::cout << "Simulation ending" << std::endl;
+    std::cout << "=========================" << std::endl;
+    std::cout << "Simulation Complete" << std::endl;
+    std::cout << "Ending Liquidity: " << this->state.portfolio.liquidity << std::endl;
+    std::cout << "Ending Unrealized: " << this->state.portfolio.unrealized << std::endl;
+    std::cout << "Ending Open Positions: " << this->state.portfolio.positions.size() << std::endl;
 }
 
 void Trader::openPositions() {
@@ -93,24 +97,26 @@ void Trader::openPositions() {
                     auto&[call, put] = straddle->second;
                     const float totalDelta = call.delta - put.delta;
 
-                    const int callUnitPrice = call.bid * 100;
-                    const float callAllocation = call.delta / totalDelta * positioning;
-                    const int callContracts = static_cast<int>(callAllocation / callUnitPrice);
+                    const float callPrice = call.midpoint() * 100;
 
-                    const int putUnitPrice = put.bid * 100;
+                    const float callAllocation = call.delta / totalDelta * positioning;
+                    const int callContracts = static_cast<int>(callAllocation / callPrice);
+
+                    const float putPrice = put.midpoint() * 100;
+
                     const float putAllocation = -1 * (put.delta / totalDelta) * positioning;
-                    const int putContracts = static_cast<int>(putAllocation / putUnitPrice);
+                    const int putContracts = static_cast<int>(putAllocation / putPrice);
 
                     if (putContracts > 0 || callContracts > 0) {
 
-                        const float price = callContracts * call.bid * 100 + putContracts * put.bid * 100;
+                        const float price = callContracts * callPrice + putContracts * putPrice;
 
                         Position position;
                         position.type = LONG;
                         position.id = straddle->first;
                         position.callContracts = callContracts;
                         position.putContracts = putContracts;
-                        position.costBasis = callContracts * call.bid * 100 + putContracts * put.bid * 100;
+                        position.costBasis = price;
 
                         this->state.portfolio.positions.push_back(position);
 
@@ -142,11 +148,11 @@ void Trader::closePositions(const bool force) {
             // Close out the position
             const auto&[call, put] = state.straddles[position->id];
 
-            const float callRealized = position->callContracts * call.ask * 100;
+            const float callRealized = position->callContracts * call.midpoint() * 100;
             this->state.portfolio.liquidity += callRealized;
             this->state.portfolio.unrealized -= callRealized;
 
-            const float putRealized = position->putContracts * put.ask * 100;
+            const float putRealized = position->putContracts * put.midpoint() * 100;
             this->state.portfolio.liquidity += putRealized;
             this->state.portfolio.unrealized -= putRealized;
 
@@ -172,8 +178,8 @@ void Trader::updatePositions() {
         }
 
         auto&[call, put] = this->state.straddles[position->id];
-        reprice += position->callContracts * call.ask * 100;
-        reprice += position->putContracts * put.ask * 100;
+        reprice += position->callContracts * call.midpoint() * 100;
+        reprice += position->putContracts * put.midpoint() * 100;
     }
 
     state.portfolio.unrealized = reprice;

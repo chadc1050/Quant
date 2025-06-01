@@ -81,6 +81,10 @@ struct OptionValues {
     float bid = 0.0;
     float ask = 0.0;
     float delta = 0.0;
+
+    float midpoint() const {
+        return (bid + ask) / 2.0f;
+    }
 };
 
 struct OptionChain {
