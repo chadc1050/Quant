@@ -16,6 +16,7 @@ void Trader::advance(const std::chrono::year_month_day date, const bool init) {
     std::cout << "Starting new day: " << this->state.date.year() << "-" << this->state.date.month() << "-" << this->state.date.day() << std::endl;
     std::cout << "Expiration: " << this->state.exp.year() << "-" << this->state.exp.month() << "-" << this->state.exp.day() << std::endl;
     std::cout << "Liquidity: " << this->state.portfolio.liquidity << std::endl;
+    std::cout << "Unrealized: " << this->state.portfolio.unrealized << std::endl;
 
     const auto next = data->getNextDate(date);
 
@@ -26,6 +27,7 @@ void Trader::advance(const std::chrono::year_month_day date, const bool init) {
 
     if (!init) {
         updateState(date);
+        updatePositions();
     }
 
     closePositions();
@@ -99,6 +101,7 @@ void Trader::openPositions() {
                         this->state.portfolio.positions.push_back(position);
 
                         this->state.portfolio.liquidity -= price;
+                        this->state.portfolio.unrealized += price;
                     }
                 } else if (indicator < 0) {
                     // TODO: Implement short
@@ -112,14 +115,23 @@ void Trader::closePositions() {
     std::cout << "Checking for positions to close" << std::endl;
     for (auto position = state.portfolio.positions.rbegin(); position != state.portfolio.positions.rend();) {
         if (shouldClosePosition(*position)) {
+
+            if (!state.straddles.contains(position->id)) {
+                throw std::runtime_error("No straddle found for position");
+            }
+
             // Close out the position
             const auto&[call, put] = state.straddles[position->id];
 
-            this->state.portfolio.liquidity += position->callContracts * call.ask * 100;
-            this->state.portfolio.unrealized -= position->callContracts * call.ask * 100;
 
-            this->state.portfolio.liquidity += position->putContracts * put.ask * 100;
-            this->state.portfolio.unrealized -= position->putContracts * put.ask * 100;
+            const float callRealized = position->callContracts * call.ask * 100;
+
+            this->state.portfolio.liquidity += callRealized;
+            this->state.portfolio.unrealized -= callRealized;
+
+            const float putRealized = position->putContracts * put.ask * 100;
+            this->state.portfolio.liquidity += putRealized;
+            this->state.portfolio.unrealized -= putRealized;
 
             const auto current = position;
             ++position;
@@ -129,6 +141,23 @@ void Trader::closePositions() {
         }
     }
 }
+
+void Trader::updatePositions() {
+    float reprice = 0;
+    for (auto position = state.portfolio.positions.begin(); position != state.portfolio.positions.end(); ++position) {
+
+        if (!state.straddles.contains(position->id)) {
+            throw std::runtime_error("No straddle found for position");
+        }
+
+        auto&[call, put] = this->state.straddles[position->id];
+        reprice += position->callContracts * call.ask * 100;
+        reprice += position->putContracts * put.ask * 100;
+    }
+
+    state.portfolio.unrealized = reprice;
+}
+
 
 void Trader::createState(const std::chrono::year_month_day date) {
 

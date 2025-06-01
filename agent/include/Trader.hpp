@@ -47,17 +47,18 @@ struct State {
 
 class Trader {
     public:
-        explicit Trader(const float liquidity);
-        void start(const std::chrono::year_month_day start);
+        explicit Trader(float liquidity);
+        void start(std::chrono::year_month_day start);
     private:
         State state;
         std::shared_ptr<DataStore> data;
-        void advance(const std::chrono::year_month_day date, const bool init);
+        void advance(std::chrono::year_month_day date, bool init);
         void end();
         void openPositions();
         void closePositions();
-        void createState(const std::chrono::year_month_day date);
-        void updateState(const std::chrono::year_month_day date);
+        void updatePositions();
+        void createState(std::chrono::year_month_day date);
+        void updateState(std::chrono::year_month_day date);
         std::set<std::string> getAvailableStocks();
         std::vector<std::string> getAllowedStocks() const;
         float getIndicator(std::string symbol);
