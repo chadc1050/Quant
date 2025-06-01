@@ -33,16 +33,6 @@ struct State {
     std::unordered_map<std::string, Stock> stocks;
     Straddles straddles;
     Portfolio portfolio;
-
-    std::optional<OptionId> getOptionBySymbol(const std::string &symbol) {
-        for (auto straddle = this->straddles.begin(); straddle != this->straddles.end(); ++straddle) {
-            if (straddle->first.symbol == symbol) {
-                return straddle->first;
-            }
-        }
-
-        return std::nullopt;
-    }
 };
 
 class Trader {
@@ -55,7 +45,7 @@ class Trader {
         void advance(std::chrono::year_month_day date, bool init);
         void end();
         void openPositions();
-        void closePositions();
+        void closePositions(bool force);
         void updatePositions();
         void createState(std::chrono::year_month_day date);
         void updateState(std::chrono::year_month_day date);
