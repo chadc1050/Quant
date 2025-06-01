@@ -1,6 +1,7 @@
 #include "Trader.hpp"
 
 Trader::Trader(const float liquidity) {
+    this->stats = {};
     this->state.portfolio.liquidity = liquidity;
     this->data = std::make_shared<DataStore>();
 };
@@ -47,6 +48,8 @@ void Trader::advance(const std::chrono::year_month_day date, const bool init) {
         openPositions();
     }
 
+    stats.update(state);
+
     std::cout << "End of Date." << std::endl;
     std::cout << "Ending Liquidity: " << this->state.portfolio.liquidity << std::endl;
     std::cout << "Ending Unrealized: " << this->state.portfolio.unrealized << std::endl;
@@ -55,7 +58,7 @@ void Trader::advance(const std::chrono::year_month_day date, const bool init) {
     advance(next.value(), false);
 }
 
-void Trader::end() {
+void Trader::end() const {
     std::cout << "=========================" << std::endl;
     std::cout << "Simulation Complete" << std::endl;
     std::cout << "Ending Liquidity: " << this->state.portfolio.liquidity << std::endl;

@@ -35,15 +35,26 @@ struct State {
     Portfolio portfolio;
 };
 
+struct Stats {
+    std::unordered_map<std::chrono::year_month_day, float> unrealized = {};
+    std::unordered_map<std::chrono::year_month_day, float> liquidity = {};
+
+    void update(const State& state) {
+        unrealized[state.date] = state.portfolio.unrealized;
+        liquidity[state.date] = state.portfolio.liquidity;
+    }
+};
+
 class Trader {
     public:
         explicit Trader(float liquidity);
         void start(std::chrono::year_month_day start);
     private:
         State state;
+        Stats stats;
         std::shared_ptr<DataStore> data;
         void advance(std::chrono::year_month_day date, bool init);
-        void end();
+        void end() const;
         void openPositions();
         void closePositions(bool force);
         void updatePositions();

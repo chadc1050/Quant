@@ -37,6 +37,16 @@ struct OptionId {
     }
 };
 
+template<>
+struct std::hash<std::chrono::year_month_day> {
+    size_t operator()(const std::chrono::year_month_day& ymd) const noexcept {
+        const auto y = static_cast<int>(ymd.year());
+        const auto m = static_cast<unsigned>(ymd.month());
+        const auto d = static_cast<unsigned>(ymd.day());
+        return hash<int>()(y) ^ hash<unsigned>()(m) << 1 ^ hash<unsigned>()(d) << 2;
+    }
+};
+
 template <>
 struct std::hash<OptionId> {
     size_t operator()(const OptionId& id) const noexcept {
@@ -44,9 +54,7 @@ struct std::hash<OptionId> {
         const size_t symbolHash = std::hash<std::string>{}(id.symbol);
 
         // Hash the expiration date
-        const auto sysDays = std::chrono::sys_days(id.expiration);
-        const long epoch = sysDays.time_since_epoch().count();
-        const size_t dateHash = std::hash<int>{}(epoch);
+        const size_t dateHash = hash<std::chrono::year_month_day>{}(id.expiration);
 
         // Hash the strike price
         uint32_t strikeAsInt;
