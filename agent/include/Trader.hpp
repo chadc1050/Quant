@@ -38,11 +38,16 @@ struct State {
 
 struct Stats {
     std::unordered_map<std::chrono::year_month_day, float> unrealized = {};
+    std::unordered_map<std::chrono::year_month_day, std::unordered_map<OptionId, float>> positions = {};
     std::unordered_map<std::chrono::year_month_day, float> liquidity = {};
 
     void update(const State& state) {
         unrealized[state.date] = state.portfolio.unrealized;
         liquidity[state.date] = state.portfolio.liquidity;
+        for (auto position : state.portfolio.positions) {
+            const auto&[call, put] = state.straddles.at(position.id);
+            positions[state.date][position.id] = position.putContracts * call.midpoint() + position.callContracts * put.midpoint();
+        }
     }
 };
 
