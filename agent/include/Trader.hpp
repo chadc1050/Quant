@@ -4,6 +4,7 @@
 
 #include "Data/DataStore.hpp"
 #include "Data/DateUtils.hpp"
+#include "Logger/Logger.hpp"
 
 using Straddle = std::pair<OptionValues, OptionValues>;
 using Straddles = std::unordered_map<OptionId, Straddle>;

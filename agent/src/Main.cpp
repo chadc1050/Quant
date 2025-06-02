@@ -49,7 +49,7 @@ void train() {
 
 int main() {
 
-    Trader trader(100000.0f);
+    Trader trader(1000000.0f);
 
     trader.start(std::chrono::year_month_day{std::chrono::year{2020}, std::chrono::month{1}, std::chrono::day{17}});
 

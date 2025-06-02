@@ -15,12 +15,12 @@ void Trader::start(const std::chrono::year_month_day start) {
 }
 
 void Trader::advance(const std::chrono::year_month_day date, const bool init) {
-    std::cout << "=========================" << std::endl;
-    std::cout << "Date: " << this->state.date.year() << "-" << this->state.date.month() << "-" << this->state.date.day() << std::endl;
-    std::cout << "Next Expiration Date: " << this->state.exp.year() << "-" << this->state.exp.month() << "-" << this->state.exp.day() << std::endl;
-    std::cout << "Starting Liquidity: " << this->state.portfolio.liquidity << std::endl;
-    std::cout << "Starting Unrealized: " << this->state.portfolio.unrealized << std::endl;
-    std::cout << "Starting Open Positions: " << this->state.portfolio.positions.size() << std::endl;
+    info("============================");
+    info(std::format("Date: {}-{}-{}",  this->state.date.month(), this->state.date.day(), this->state.date.year()));
+    info(std::format("Next Expiration Date: {}-{}-{}", this->state.exp.month(), this->state.exp.day(), this->state.exp.year()));
+    info(std::format("Starting Liquidity: {}", this->state.portfolio.liquidity));
+    info(std::format("Starting Unrealized: {}", this->state.portfolio.unrealized));
+    info(std::format("Starting Open Positions: {}", this->state.portfolio.positions.size()));
 
     const auto next = data->getNextDate(date);
     if (!next.has_value()) {
@@ -37,7 +37,7 @@ void Trader::advance(const std::chrono::year_month_day date, const bool init) {
 
     // On expiration open new positions for next month at market open
     if (next.value() > nextThirdFriday(this->state.date)) {
-        std::cout << "WARNING: Missing expiration date, early closing positions!" << std::endl;
+        warn("Missing expiration date, early closing positions!");
 
         closePositions(true);
         createState(next.value());
@@ -50,25 +50,25 @@ void Trader::advance(const std::chrono::year_month_day date, const bool init) {
 
     stats.update(state);
 
-    std::cout << "End of Date." << std::endl;
-    std::cout << "Ending Liquidity: " << this->state.portfolio.liquidity << std::endl;
-    std::cout << "Ending Unrealized: " << this->state.portfolio.unrealized << std::endl;
-    std::cout << "Ending Open Positions: " << this->state.portfolio.positions.size() << std::endl;
+    info("End of Date.");
+    info(std::format("Ending Liquidity: {}", this->state.portfolio.liquidity));
+    info(std::format("Ending Unrealized: {}", this->state.portfolio.unrealized));
+    info(std::format("Ending Open Positions: {}", this->state.portfolio.positions.size()));
 
     advance(next.value(), false);
 }
 
 void Trader::end() const {
-    std::cout << "=========================" << std::endl;
-    std::cout << "Simulation Complete" << std::endl;
-    std::cout << "Ending Liquidity: " << this->state.portfolio.liquidity << std::endl;
-    std::cout << "Ending Unrealized: " << this->state.portfolio.unrealized << std::endl;
-    std::cout << "Ending Open Positions: " << this->state.portfolio.positions.size() << std::endl;
+    info("============================");
+    info("Simulation Complete");
+    info(std::format("Ending Liquidity: {}", this->state.portfolio.liquidity));
+    info(std::format("Ending Unrealized: {}", this->state.portfolio.unrealized));
+    info(std::format("Ending Open Positions: {}", this->state.portfolio.positions.size()));
 }
 
 void Trader::openPositions() {
 
-    std::cout << "Opening positions" << std::endl;
+    debug("Opening positions...");
 
     // Scan to consist of only S&P 100 Companies (Due to diversification and high liquidity).
     // Will be for ATM straddled contracts such that call and put delta are the same weight.
@@ -85,6 +85,13 @@ void Trader::openPositions() {
     }
 
     const float allocation = this->state.portfolio.liquidity / symbols.size();
+
+    if (symbols.size() < 15) {
+        warn(std::format("Low diversification in positions available ({})! Skipping!", symbols.size()));
+        return;
+    }
+
+    float unallocated = 0.0f;
 
     for (auto symbol = symbols.begin(); symbol != symbols.end(); ++symbol) {
 
@@ -110,10 +117,9 @@ void Trader::openPositions() {
                     const float putAllocation = -1 * (put.delta / totalDelta) * positioning;
                     const int putContracts = static_cast<int>(putAllocation / putPrice);
 
-                    if (putContracts > 0 || callContracts > 0) {
+                    const float price = callContracts * callPrice + putContracts * putPrice;
 
-                        const float price = callContracts * callPrice + putContracts * putPrice;
-
+                    if (price > 0) {
                         Position position;
                         position.type = LONG;
                         position.id = straddle->first;
@@ -126,19 +132,24 @@ void Trader::openPositions() {
                         this->state.portfolio.liquidity -= price;
                         this->state.portfolio.unrealized += price;
                     }
+
+                    unallocated += allocation - price;
                 } else if (indicator < 0) {
                     // TODO: Implement short
                 }
             }
         }
     }
+
+    debug(std::format("Opened {} positions", this->state.portfolio.positions.size()));
+    debug(std::format("Unallocated liquidity: {}", unallocated));
 }
 
 void Trader::closePositions(const bool force) {
     if (force) {
-        std::cout << "Force closing positions." << std::endl;
+        warn("Force closing positions!");
     } else {
-        std::cout << "Checking for positions to close" << std::endl;
+        debug("Checking for positions to close...");
     }
     int nClosed = 0;
     for (auto position = state.portfolio.positions.rbegin(); position != state.portfolio.positions.rend();) {
@@ -168,7 +179,7 @@ void Trader::closePositions(const bool force) {
         }
     }
     if (nClosed > 0) {
-        std::cout << "Closed " << nClosed << " positions." << std::endl;
+        debug(std::format("Closed {} positions", nClosed));
     }
 }
 
@@ -191,7 +202,7 @@ void Trader::updatePositions() {
 
 void Trader::createState(const std::chrono::year_month_day date) {
 
-    std::cout << "Creating market simulation state." << std::endl;
+    debug("Creating market simulation state...");
 
     this->state.date = date;
     this->state.exp = nextThirdFriday(date);
@@ -274,7 +285,7 @@ void Trader::createState(const std::chrono::year_month_day date) {
 }
 
 void Trader::updateState(const std::chrono::year_month_day date) {
-    std::cout << "Updating market simulation state." << std::endl;
+    debug("Updating market simulation state...");
 
     this->state.date = date;
 

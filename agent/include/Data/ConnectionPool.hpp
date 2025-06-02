@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Logger/Logger.hpp"
+
 #include <cppconn/driver.h>
 
 template<std::size_t N>
@@ -16,7 +18,7 @@ struct ConnectionPool {
                 connections[i] = std::move(init());
             }
         } catch (sql::SQLException &e) {
-            std::cout << "Error loading driver: " << e.what() << std::endl;
+            error(std::format("Error loading driver: {}", e.what()));
             throw;
         }
     }
