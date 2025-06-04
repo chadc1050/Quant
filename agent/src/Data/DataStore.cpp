@@ -163,3 +163,94 @@
 
     return data;
 }
+
+SimpleMovingAverages DataStore::getSimpleMovingAverages(const std::string& symbol, const std::chrono::year_month_day date) const {
+    const std::shared_ptr<sql::Connection> conn = pool->get();
+
+    sql::PreparedStatement* prepared_statement = conn->prepareStatement("SELECT sma2, sma4, sma8, sma16, sma32 FROM option_straddle_derived WHERE symbol = ? AND date = ?");
+    prepared_statement->setString(1, symbol);
+    prepared_statement->setString(2, formatDate(date));
+    sql::ResultSet* result = prepared_statement->executeQuery();
+
+    result->next();
+    const SimpleMovingAverages sma = SimpleMovingAverages::fromResult(result);
+
+    delete prepared_statement;
+    delete result;
+
+    return sma;
+}
+
+ExpMovingAverages DataStore::getExpMovingAverages(const std::string& symbol, const std::chrono::year_month_day date) const {
+    const std::shared_ptr<sql::Connection> conn = pool->get();
+
+    sql::PreparedStatement* prepared_statement = conn->prepareStatement("SELECT ema2, ema4, ema8, ema16, ema32 FROM option_straddle_derived WHERE symbol = ? AND date = ?");
+    prepared_statement->setString(1, symbol);
+    prepared_statement->setString(2, formatDate(date));
+    sql::ResultSet* result = prepared_statement->executeQuery();
+
+    result->next();
+    const ExpMovingAverages ema = ExpMovingAverages::fromResult(result);
+
+    delete prepared_statement;
+    delete result;
+
+    return ema;
+}
+
+StandardDeviation DataStore::getStandardDeviation(const std::string& symbol, const std::chrono::year_month_day date) const {
+    const std::shared_ptr<sql::Connection> conn = pool->get();
+
+    sql::PreparedStatement* prepared_statement = conn->prepareStatement("SELECT std5, std10, std15, std20, std25, std30 FROM option_straddle_derived WHERE symbol = ? AND date = ?");
+    prepared_statement->setString(1, symbol);
+    prepared_statement->setString(2, formatDate(date));
+    sql::ResultSet* result = prepared_statement->executeQuery();
+
+    result->next();
+    const StandardDeviation std = StandardDeviation::fromResult(result);
+
+    delete prepared_statement;
+    delete result;
+
+    return std;
+}
+
+StraddleDerived DataStore::getStraddleDerived(const std::string& symbol, const std::chrono::year_month_day date) const {
+    const std::shared_ptr<sql::Connection> conn = pool->get();
+
+    sql::PreparedStatement* prepared_statement = conn->prepareStatement("SELECT * FROM option_straddle_derived WHERE symbol = ? AND date = ?");
+    prepared_statement->setString(1, symbol);
+    prepared_statement->setString(2, formatDate(date));
+    sql::ResultSet* result = prepared_statement->executeQuery();
+
+    result->next();
+    const StraddleDerived derived = StraddleDerived::fromResult(result);
+
+    delete prepared_statement;
+    delete result;
+
+    return derived;
+}
+
+std::vector<StraddleDerived> DataStore::getStraddleDerivedHistory(const std::string& symbol, const std::chrono::year_month_day from, const int days) const {
+    const std::shared_ptr<sql::Connection> conn = pool->get();
+
+    sql::PreparedStatement* prepared_statement = conn->prepareStatement("SELECT * FROM option_straddle_derived WHERE symbol = ? AND date <= ? ORDER BY date DESC LIMIT = ?");
+    prepared_statement->setString(1, symbol);
+    prepared_statement->setString(2, formatDate(from));
+    prepared_statement->setInt(3, days);
+    sql::ResultSet* result = prepared_statement->executeQuery();
+
+    result->next();
+
+    std::vector<StraddleDerived> data = {};
+
+    while (result->next()) {
+        data.push_back(StraddleDerived::fromResult(result));
+    }
+
+    delete prepared_statement;
+    delete result;
+
+    return data;
+}

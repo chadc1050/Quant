@@ -140,6 +140,78 @@ struct Stock {
     }
 };
 
+struct SimpleMovingAverages {
+    float sma2;
+    float sma4;
+    float sma8;
+    float sma16;
+    float sma32;
+
+    static SimpleMovingAverages fromResult(const sql::ResultSet* result) {
+        SimpleMovingAverages sma;
+        sma.sma2 = static_cast<float>(result->getDouble("sma2"));
+        sma.sma4 = static_cast<float>(result->getDouble("sma4"));
+        sma.sma8 = static_cast<float>(result->getDouble("sma8"));
+        sma.sma16 = static_cast<float>(result->getDouble("sma16"));
+        sma.sma32 = static_cast<float>(result->getDouble("sma32"));
+        return sma;
+    }
+};
+
+struct ExpMovingAverages {
+    float ema2;
+    float ema4;
+    float ema8;
+    float ema16;
+    float ema32;
+
+    static ExpMovingAverages fromResult(const sql::ResultSet* result) {
+        ExpMovingAverages ema;
+        ema.ema2 = static_cast<float>(result->getDouble("ema2"));
+        ema.ema4 = static_cast<float>(result->getDouble("ema4"));
+        ema.ema8 = static_cast<float>(result->getDouble("ema8"));
+        ema.ema16 = static_cast<float>(result->getDouble("ema16"));
+        ema.ema32 = static_cast<float>(result->getDouble("ema32"));
+        return ema;
+    }
+};
+
+struct StandardDeviation {
+    float std5;
+    float std10;
+    float std15;
+    float std20;
+    float std25;
+    float std30;
+
+    static StandardDeviation fromResult(const sql::ResultSet* result) {
+        StandardDeviation std;
+        std.std5 = static_cast<float>(result->getDouble("std5"));
+        std.std10 = static_cast<float>(result->getDouble("std10"));
+        std.std15 = static_cast<float>(result->getDouble("std15"));
+        std.std20 = static_cast<float>(result->getDouble("std20"));
+        std.std25 = static_cast<float>(result->getDouble("std25"));
+        std.std30 = static_cast<float>(result->getDouble("std30"));
+        return std;
+    }
+};
+
+struct StraddleDerived {
+    std::chrono::year_month_day date;
+    SimpleMovingAverages sma;
+    ExpMovingAverages ema;
+    StandardDeviation std;
+
+    static StraddleDerived fromResult(const sql::ResultSet* result) {
+        StraddleDerived straddle;
+        straddle.date = parseDate(result->getString("date"));
+        straddle.sma = SimpleMovingAverages::fromResult(result);
+        straddle.ema = ExpMovingAverages::fromResult(result);
+        straddle.std = StandardDeviation::fromResult(result);
+        return straddle;
+    }
+};
+
 struct DataStore {
     std::shared_ptr<ConnectionPool<10>> pool = std::make_shared<ConnectionPool<10>>();
 
@@ -158,4 +230,14 @@ struct DataStore {
     [[nodiscard]] std::vector<std::string> getSAP100Stocks(std::chrono::year_month_day const& date) const;
 
     [[nodiscard]] std::vector<VixData> getVix() const;
+
+    [[nodiscard]] SimpleMovingAverages getSimpleMovingAverages(const std::string& symbol, std::chrono::year_month_day date) const;
+
+    [[nodiscard]] ExpMovingAverages getExpMovingAverages(const std::string& symbol, std::chrono::year_month_day date) const;
+
+    [[nodiscard]] StandardDeviation getStandardDeviation(const std::string& symbol, std::chrono::year_month_day date) const;
+
+    [[nodiscard]] StraddleDerived getStraddleDerived(const std::string& symbol, std::chrono::year_month_day date) const;
+
+    [[nodicard]] std::vector<StraddleDerived> getStraddleDerivedHistory(const std::string& symbol, std::chrono::year_month_day from, int days) const;
 };

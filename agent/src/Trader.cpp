@@ -1,9 +1,10 @@
 #include "Trader.hpp"
 
-Trader::Trader(const float liquidity) {
+Trader::Trader(const std::shared_ptr<Signal>& signal, const std::shared_ptr<DataStore>& data, const float liquidity) {
     this->stats = {};
     this->state.portfolio.liquidity = liquidity;
-    this->data = std::make_shared<DataStore>();
+    this->data = data;
+    this->signal = signal;
 };
 
 void Trader::start(const std::chrono::year_month_day start) {
@@ -91,58 +92,61 @@ void Trader::openPositions() {
         return;
     }
 
-    float unallocated = 0.0f;
-
     for (auto symbol = symbols.begin(); symbol != symbols.end(); ++symbol) {
 
         // TODO: This should pass all the information needed to feed the model
-        const float indicator = getIndicator(*symbol);
+        const float indicator = signal->signal(*symbol, this->state.date);
+
+        debug(std::format("Signal strength: {}", indicator));
+
+        if (indicator == 0.0f) {
+            continue;
+        }
 
         const float positioning = indicator * allocation;
 
         for (auto straddle = state.straddles.begin(); straddle != state.straddles.end(); ++straddle) {
             if (straddle->first.symbol == *symbol) {
-                if (indicator > 0) {
-                    // Construct delta neutral allocation
-                    auto&[call, put] = straddle->second;
-                    const float totalDelta = call.delta - put.delta;
 
-                    const float callPrice = call.midpoint() * 100;
+                // Construct delta neutral allocation
+                auto&[call, put] = straddle->second;
+                const float totalDelta = call.delta - put.delta;
 
-                    const float callAllocation = call.delta / totalDelta * positioning;
-                    const int callContracts = static_cast<int>(callAllocation / callPrice);
+                const float callPrice = call.midpoint() * 100;
 
-                    const float putPrice = put.midpoint() * 100;
+                const float callAllocation = call.delta / totalDelta * positioning;
+                const int callContracts = static_cast<int>(callAllocation / callPrice);
 
-                    const float putAllocation = -1 * (put.delta / totalDelta) * positioning;
-                    const int putContracts = static_cast<int>(putAllocation / putPrice);
+                const float putPrice = put.midpoint() * 100;
 
-                    const float price = callContracts * callPrice + putContracts * putPrice;
+                const float putAllocation = -1 * (put.delta / totalDelta) * positioning;
+                const int putContracts = static_cast<int>(putAllocation / putPrice);
 
-                    if (price > 0) {
-                        Position position;
+                if (const float price = callContracts * callPrice + putContracts * putPrice; price > 0) {
+
+                    Position position;
+                    position.id = straddle->first;
+                    position.callContracts = callContracts;
+                    position.putContracts = putContracts;
+                    position.costBasis = price;
+
+                    if (indicator > 0) {
                         position.type = LONG;
-                        position.id = straddle->first;
-                        position.callContracts = callContracts;
-                        position.putContracts = putContracts;
-                        position.costBasis = price;
-
-                        this->state.portfolio.positions.push_back(position);
-
                         this->state.portfolio.liquidity -= price;
                         this->state.portfolio.unrealized += price;
+                    } else {
+                        position.type = SHORT;
+                        this->state.portfolio.liquidity += price;
+                        this->state.portfolio.unrealized -= price;
                     }
 
-                    unallocated += allocation - price;
-                } else if (indicator < 0) {
-                    // TODO: Implement short
+                    this->state.portfolio.positions.push_back(position);
                 }
             }
         }
     }
 
     debug(std::format("Opened {} positions", this->state.portfolio.positions.size()));
-    debug(std::format("Unallocated liquidity: {}", unallocated));
 }
 
 void Trader::closePositions(const bool force) {
@@ -162,13 +166,15 @@ void Trader::closePositions(const bool force) {
             // Close out the position
             const auto&[call, put] = state.straddles[position->id];
 
-            const float callRealized = position->callContracts * call.midpoint() * 100;
-            this->state.portfolio.liquidity += callRealized;
-            this->state.portfolio.unrealized -= callRealized;
+            const float price = position->callContracts * call.midpoint() * 100 + position->putContracts * put.midpoint() * 100;
 
-            const float putRealized = position->putContracts * put.midpoint() * 100;
-            this->state.portfolio.liquidity += putRealized;
-            this->state.portfolio.unrealized -= putRealized;
+            if (position->type == LONG) {
+                this->state.portfolio.liquidity += price;
+                this->state.portfolio.unrealized -= price;
+            } else if (position->type == SHORT) {
+                this->state.portfolio.liquidity -= price;
+                this->state.portfolio.unrealized += price;
+            }
 
             const auto current = position;
             ++position;
@@ -318,11 +324,6 @@ std::set<std::string> Trader::getAvailableStocks() {
 
 std::vector<std::string> Trader::getAllowedStocks() const {
     return data->getSAP100Stocks(this->state.date);
-}
-
-float Trader::getIndicator(std::string symbol) {
-    // Long only
-    return 1.0f;
 }
 
 bool Trader::shouldClosePosition(const Position& _) const {

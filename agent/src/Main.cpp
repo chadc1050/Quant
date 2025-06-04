@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <random>
 
+#include "Model/MACD.hpp"
+
 
 template<std::size_t I, std::size_t O, typename T>
 std::vector<Sample<I, O>> generateSamples(const std::vector<T>& vix) {
@@ -49,7 +51,11 @@ void train() {
 
 int main() {
 
-    Trader trader(1000000.0f);
+    auto data = std::make_shared<DataStore>();
+
+    auto macd = std::make_shared<MACD>(data);
+
+    Trader trader(macd, data, 1000000.0f);
 
     trader.start(std::chrono::year_month_day{std::chrono::year{2020}, std::chrono::month{1}, std::chrono::day{17}});
 

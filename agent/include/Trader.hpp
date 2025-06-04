@@ -5,6 +5,7 @@
 #include "Data/DataStore.hpp"
 #include "Data/DateUtils.hpp"
 #include "Logger/Logger.hpp"
+#include "Model/Signal.hpp"
 
 using Straddle = std::pair<OptionValues, OptionValues>;
 using Straddles = std::unordered_map<OptionId, Straddle>;
@@ -51,14 +52,20 @@ struct Stats {
     }
 };
 
+struct Config {
+    int min_diversification;
+    float initial_liquidity;
+};
+
 class Trader {
     public:
-        explicit Trader(float liquidity);
+        explicit Trader(const std::shared_ptr<Signal> &signal, const std::shared_ptr<DataStore> &data, float liquidity);
         void start(std::chrono::year_month_day start);
     private:
         State state;
         Stats stats;
         std::shared_ptr<DataStore> data;
+        std::shared_ptr<Signal> signal;
         void advance(std::chrono::year_month_day date, bool init);
         void end() const;
         void openPositions();
@@ -68,6 +75,5 @@ class Trader {
         void updateState(std::chrono::year_month_day date);
         std::set<std::string> getAvailableStocks();
         std::vector<std::string> getAllowedStocks() const;
-        float getIndicator(std::string symbol);
         bool shouldClosePosition(const Position& _) const;
 };
