@@ -100,6 +100,43 @@
     return data;
 }
 
+[[nodiscard]] Straddles DataStore::getStraddles(const std::chrono::year_month_day& date, const std::chrono::year_month_day& expiration) const {
+    const std::shared_ptr<sql::Connection> conn = pool->get();
+
+    sql::PreparedStatement* prepared_statement = conn->prepareStatement(
+        "SELECT * FROM straddle_view WHERE date = ? AND expiration = ?"
+    );
+    prepared_statement->setString(1, formatDate(date));
+    prepared_statement->setString(2, formatDate(expiration));
+    sql::ResultSet* result = prepared_statement->executeQuery();
+
+    Straddles straddles = {};
+
+    while (result->next()) {
+        auto id = OptionId{
+            result->getString("symbol"),
+            parseDate(result->getString("expiration")),
+            static_cast<float>(result->getDouble("strike"))
+        };
+        straddles[id] = std::make_pair(
+            OptionValues{
+                static_cast<float>(result->getDouble("call_bid")),
+                static_cast<float>(result->getDouble("call_ask")),
+                static_cast<float>(result->getDouble("call_delta"))
+            },
+            OptionValues{
+                static_cast<float>(result->getDouble("put_bid")),
+                static_cast<float>(result->getDouble("put_ask")),
+                static_cast<float>(result->getDouble("put_delta"))
+            });
+    }
+
+    delete prepared_statement;
+    delete result;
+
+    return straddles;
+}
+
 
 [[nodiscard]] std::vector<Stock> DataStore::getStocks(std::chrono::year_month_day const& date) const {
     const std::shared_ptr<sql::Connection> conn = pool->get();
@@ -133,7 +170,7 @@
     size_t pos = 0;
     std::vector<std::string> res;
 
-    while ((pos = stocks.find(",")) != std::string::npos) {
+    while ((pos = stocks.find(',')) != std::string::npos) {
         std::string stock = stocks.substr(0, pos);
         res.push_back(stock);
         stocks.erase(0, pos + 1);

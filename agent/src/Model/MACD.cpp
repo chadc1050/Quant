@@ -15,6 +15,10 @@ float MACD::signal(const std::string &symbol, const std::chrono::year_month_day 
         throw std::runtime_error("Less than 20 derivation records!");
     }
 
+    if (history.front().ema.ema32 == 0.0f) {
+        throw std::runtime_error("No EMA32 value!");
+    }
+
     float X = 0.0f;
 
     for (int i = 0; i < 3; i++) {
@@ -49,7 +53,7 @@ float MACD::signal(const std::string &symbol, const std::chrono::year_month_day 
 
         const float Y = macd_norms.front() / std_macd_norms;
 
-        X += Y * std::exp(-1 * (Y * Y) / 4) / 0.89 / 3;
+        X += Y * static_cast<float>(std::exp(-1 * (Y * Y) / 4) / 0.89 / 3);
     }
 
     return X;

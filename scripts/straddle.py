@@ -3,16 +3,8 @@ from sqlalchemy import create_engine
 from dataclasses import dataclass
 
 from scripts.date import get_next_date
+from scripts.option_key import OptionKey
 
-@dataclass
-class OptionKey:
-    def __init__(self, symbol, expiration, strike):
-        self.symbol = symbol
-        self.expiration = expiration
-        self.strike = strike
-
-    def __hash__(self):
-        return hash((self.symbol, self.expiration, self.strike))
 
 @dataclass
 class Straddle:
@@ -71,7 +63,6 @@ while date != "":
     # Batch straddles and insert into database
     for i in range(0, len(data), batch_size):
         batch = list(data)[i:i + batch_size]
-        print("Batch: ", int(i / batch_size), " with size: ", len(batch))
         batch_df = pd.DataFrame(batch)
         insert = batch_df.to_sql('option_straddle', engine, if_exists='append', index=False)
 

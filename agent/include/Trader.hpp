@@ -45,7 +45,7 @@ struct Stats {
     void update(const State& state) {
         unrealized[state.date] = state.portfolio.unrealized;
         liquidity[state.date] = state.portfolio.liquidity;
-        for (auto position : state.portfolio.positions) {
+        for (auto const& position : state.portfolio.positions) {
             const auto&[call, put] = state.straddles.at(position.id);
             positions[state.date][position.id] = position.putContracts * call.midpoint() + position.callContracts * put.midpoint();
         }
@@ -73,7 +73,7 @@ class Trader {
         void updatePositions();
         void createState(std::chrono::year_month_day date);
         void updateState(std::chrono::year_month_day date);
-        std::set<std::string> getAvailableStocks();
+        std::set<std::string, std::less<>> getAvailableStocks();
         std::vector<std::string> getAllowedStocks() const;
         bool shouldClosePosition(const Position& _) const;
 };
