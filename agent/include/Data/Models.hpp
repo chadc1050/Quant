@@ -187,11 +187,33 @@ struct StandardDeviation {
     }
 };
 
+struct Return {
+    float ret5;
+    float ret10;
+    float ret15;
+    float ret20;
+    float ret25;
+    float ret30;
+
+    static Return fromResult(const sql::ResultSet* result) {
+        Return ret;
+        ret.ret5 = static_cast<float>(result->getDouble("ret5"));
+        ret.ret10 = static_cast<float>(result->getDouble("ret10"));
+        ret.ret15 = static_cast<float>(result->getDouble("ret15"));
+        ret.ret20 = static_cast<float>(result->getDouble("ret20"));
+        ret.ret25 = static_cast<float>(result->getDouble("ret25"));
+        ret.ret30 = static_cast<float>(result->getDouble("ret30"));
+
+        return ret;
+    }
+};
+
 struct StraddleDerived {
     std::chrono::year_month_day date;
     SimpleMovingAverages sma;
     ExpMovingAverages ema;
     StandardDeviation std;
+    Return ret;
 
     static StraddleDerived fromResult(const sql::ResultSet* result) {
         StraddleDerived straddle;
@@ -199,6 +221,7 @@ struct StraddleDerived {
         straddle.sma = SimpleMovingAverages::fromResult(result);
         straddle.ema = ExpMovingAverages::fromResult(result);
         straddle.std = StandardDeviation::fromResult(result);
+        straddle.ret = Return::fromResult(result);
         return straddle;
     }
 };

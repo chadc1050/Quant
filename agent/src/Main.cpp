@@ -6,6 +6,7 @@
 #include <random>
 
 #include "Model/MACD.hpp"
+#include "Model/TSMR.hpp"
 
 
 template<std::size_t I, std::size_t O, typename T>
@@ -53,9 +54,7 @@ int main() {
 
     auto data = std::make_shared<DataStore>();
 
-    auto macd = std::make_shared<MACD>(data);
-
-    Trader trader(macd, data, 1000000.0f);
+    Trader trader(std::make_shared<TSMR>(data), data, 1000000.0f);
 
     trader.start(std::chrono::year_month_day{std::chrono::year{2020}, std::chrono::month{1}, std::chrono::day{17}});
 
