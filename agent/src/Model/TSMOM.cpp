@@ -5,7 +5,7 @@ TSMOM::TSMOM(std::shared_ptr<DataStore>& data) {
 }
 
 [[nodiscard]] float TSMOM::signal(const int straddle_id, const std::chrono::year_month_day date) const {
-    StraddleDerived derived = this->data->getStraddleDerived(straddle_id, date);
+    const StraddleDerived derived = this->data->getStraddleDerived(straddle_id, date);
     const float ret = derived.ret.ret20;
 
     if (ret > 0.0f) {

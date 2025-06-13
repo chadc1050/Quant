@@ -5,7 +5,10 @@
 #include <algorithm>
 #include <random>
 
+#include "Model/Long.hpp"
 #include "Model/MACD.hpp"
+#include "Model/MACDMR.hpp"
+#include "Model/Short.hpp"
 #include "Model/TSMR.hpp"
 
 
@@ -54,11 +57,15 @@ int main() {
     // Start date chosen due to it being the first date where 32 period lookback was available
     constexpr auto start_date = std::chrono::year_month_day{std::chrono::year{2024}, std::chrono::month{9}, std::chrono::day{20}};
 
-    auto data = std::make_shared<DataStore>();
+    const auto data = std::make_shared<DataStore>();
 
-    Trader tsmr_trader(std::make_shared<TSMR>(data), data, 1000000.0f);
+    Trader long_trader(std::make_shared<Long>(), data, 1000000.0f);
 
-    tsmr_trader.start(start_date);
+    long_trader.start(start_date);
+
+    Trader short_trader(std::make_shared<Short>(), data, 1000000.0f);
+
+    short_trader.start(start_date);
 
     return 0;
 }

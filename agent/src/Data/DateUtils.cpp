@@ -12,12 +12,10 @@ std::chrono::year_month_day parseDate(const std::string& dateStr) {
 }
 
 std::string formatDate(const std::chrono::year_month_day& date) {
-    char buffer[11];
-    sprintf(buffer, "%04d-%02d-%02d",
+    return std::format("{:04}-{:02}-{:02}",
             static_cast<int>(date.year()),
             static_cast<unsigned>(date.month()),
             static_cast<unsigned>(date.day()));
-    return std::string(buffer);
 }
 
 bool isThirdFriday(const std::chrono::year_month_day &date) {

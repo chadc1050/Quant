@@ -70,7 +70,6 @@ class Trader {
         void updatePositions();
         void createState(std::chrono::year_month_day date);
         void updateState(std::chrono::year_month_day date);
-        std::set<std::string> getAvailableStocks();
         std::vector<std::string> getAllowedStocks() const;
         bool shouldClosePosition(const Position& _) const;
 };

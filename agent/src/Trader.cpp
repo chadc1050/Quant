@@ -96,13 +96,13 @@ void Trader::openPositions() {
 
         const float indicator = signal->signal(straddle.straddle_id, this->state.date);
 
-        debug(std::format("Signal strength: {}", indicator));
+        debug(std::format("Symbol {} with Strike {} has signal strength: {}", straddle.id.symbol, straddle.id.strike, indicator));
 
         if (indicator == 0.0f) {
             continue;
         }
 
-        const float positioning = indicator * allocation;
+        const float positioning = std::abs(indicator) * allocation;
 
         for (const auto&[id, options] : state.straddles) {
             if (id == straddle.id) {
@@ -145,7 +145,7 @@ void Trader::openPositions() {
         }
     }
 
-    debug(std::format("Opened {} positions", this->state.portfolio.positions.size()));
+      debug(std::format("Opened {} positions", this->state.portfolio.positions.size()));
 }
 
 void Trader::closePositions(const bool force) {
@@ -203,7 +203,12 @@ void Trader::updatePositions() {
 
         const OptionValues& call = this->state.straddles[position.id].call;
         const OptionValues& put = this->state.straddles[position.id].put;
-        reprice += static_cast<float>(position.callContracts) * call.midpoint() * 100 + static_cast<float>(position.putContracts) * put.midpoint() * 100;
+        const float price = static_cast<float>(position.callContracts) * call.midpoint() * 100 + static_cast<float>(position.putContracts) * put.midpoint() * 100;
+        if (position.type == LONG) {
+            reprice += price;
+        } else {
+            reprice -= price;
+        }
     }
 
     state.portfolio.unrealized = reprice;
@@ -311,32 +316,21 @@ void Trader::updateState(const std::chrono::year_month_day date) {
         this->state.stocks[stock.symbol] = stock;
     }
 
-    const std::vector<Straddle> res = data->getStraddles(this->state.date, this->state.exp);
-
     std::unordered_map<OptionId, Straddle> straddles = {};
 
-    for (const Straddle& straddle: res) {
+    for (const Straddle& straddle: data->getStraddles(this->state.date, this->state.exp)) {
         straddles[straddle.id] = straddle;
     }
 
-    // Update existing straddles
-    for (const auto &id: straddles | std::views::keys) {
-
-        if (straddles.contains(id)) {
-            this->state.straddles[id];
-        } else {
+    for (const auto &id: this->state.straddles | std::views::keys) {
+        if (!straddles.contains(id)) {
             warn(std::format("Straddle for {} not found!", id.symbol));
+            continue;
         }
-    }
-}
 
-std::set<std::string> Trader::getAvailableStocks() {
-    std::set<std::string> availableTickers = {};
-    for (const auto &id: state.straddles | std::views::keys) {
-        availableTickers.insert(id.symbol);
+        // Update existing straddles
+        this->state.straddles[id] = straddles[id];
     }
-
-    return availableTickers;
 }
 
 std::vector<std::string> Trader::getAllowedStocks() const {
