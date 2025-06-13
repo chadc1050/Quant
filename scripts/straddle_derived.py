@@ -6,7 +6,7 @@ import pandas as pd
 import numpy as np
 from sqlalchemy import create_engine
 
-from scripts.date import get_next_date
+from scripts.date import get_next_date, get_start_date
 from scripts.option_key import OptionKey
 
 @dataclass
@@ -37,12 +37,24 @@ class StraddleDerived:
         self.ema16: Optional[float] = None
         self.ema32: Optional[float] = None
 
-def get_half_life(scale) -> float:
-    return np.log(0.5) / np.log(1 - 1 / scale)
+def get_half_life(t: int) -> float:
+    return np.log(0.5) / np.log(1 - 1 / t)
+
+def get_return(values: list[float]) -> float:
+    # -99999 will indicate arbitrage assumption violation
+    if values[-1] == 0:
+        return -99999.99
+
+    return (values[0] - values[-1]) / values[-1]
+
+def get_ema(values: list[float], t: int) -> float:
+    return pd.DataFrame(reversed(values), columns=['price']).ewm(halflife=get_half_life(t), adjust=False).mean().iloc[-1, 0]
 
 batch_size = 1000
 
-date = get_next_date("")
+date = get_start_date()
+
+write_date = "2022-08-17"
 
 engine = create_engine("mysql+pymysql://root:password@192.168.1.189/financial_data")
 
@@ -57,7 +69,12 @@ while date != "":
 
     date_window.append(date)
 
-    # Query in last 32 days for straddles
+    # If we are not writing yet continue
+    if write_date != "" and datetime.datetime.strptime(date, "%Y-%m-%d") < datetime.datetime.strptime(write_date, "%Y-%m-%d"):
+        date = get_next_date(date)
+        continue
+
+    # Query 32-day lookback for straddles
     dates_in = ",".join(["'" + prevDate + "'" for prevDate in date_window[-32:]])
 
     df_straddles = pd.read_sql_query("SELECT * FROM straddle_view WHERE date in (" + dates_in + ")", engine)
@@ -77,7 +94,7 @@ while date != "":
     for item in breakdown[datetime.datetime.strptime(date, "%Y-%m-%d").date()].keys():
         prices = []
         derived = StraddleDerived(date, breakdown[datetime.datetime.strptime(date, "%Y-%m-%d").date()][item][1]['option_straddle_id'])
-        for lag in range(1, 32):
+        for lag in range(1, 33):
             if lag > len(date_window):
                 break
 
@@ -97,37 +114,37 @@ while date != "":
             # Calculate derived values
             if lag == 2:
                 derived.sma2 = sum(prices) / 2
-                derived.ema2 = pd.DataFrame(prices, columns=['price']).ewm(halflife=get_half_life(2), adjust=False).mean().iloc[-1, 0]
+                derived.ema2 = get_ema(prices, 2)
             elif lag == 4:
                 derived.sma4 = sum(prices) / 4
-                derived.ema4 = pd.DataFrame(prices, columns=['price']).ewm(halflife=get_half_life(4), adjust=False).mean().iloc[-1, 0]
+                derived.ema4 = get_ema(prices, 4)
             elif lag == 5:
-                derived.ret5 = (prices[-1] - prices[0]) / prices[0]
+                derived.ret5 = get_return(prices)
                 derived.std5 = float(np.std(prices))
             elif lag == 8:
                 derived.sma8 = sum(prices) / 8
-                derived.ema8 = pd.DataFrame(prices, columns=['price']).ewm(halflife=get_half_life(8), adjust=False).mean().iloc[-1, 0]
+                derived.ema8 = get_ema(prices, 8)
             elif lag == 10:
-                derived.ret10 = (prices[-1] - prices[0]) / prices[0]
+                derived.ret10 = get_return(prices)
                 derived.std10 = float(np.std(prices))
             elif lag == 15:
-                derived.ret15 = (prices[-1] - prices[0]) / prices[0]
+                derived.ret15 = get_return(prices)
                 derived.std15 = float(np.std(prices))
             if lag == 16:
                 derived.sma16 = sum(prices) / 16
-                derived.ema16 = pd.DataFrame(prices, columns=['price']).ewm(halflife=get_half_life(16), adjust=False).mean().iloc[-1, 0]
+                derived.ema16 = get_ema(prices, 16)
             elif lag == 20:
-                derived.ret20 = (prices[-1] - prices[0]) / prices[0]
+                derived.ret20 = get_return(prices)
                 derived.std20 = float(np.std(prices))
             elif lag == 25:
-                derived.ret25 = (prices[-1] - prices[0]) / prices[0]
+                derived.ret25 = get_return(prices)
                 derived.std25 = float(np.std(prices))
             elif lag == 30:
-                derived.ret30 = (prices[-1] - prices[0]) / prices[0]
+                derived.ret30 = get_return(prices)
                 derived.std30 = float(np.std(prices))
             elif lag == 32:
                 derived.sma32 = sum(prices) / 32
-                derived.ema32 = pd.DataFrame(prices, columns=['price']).ewm(halflife=get_half_life(32), adjust=False).mean().iloc[-1, 0]
+                derived.ema32 = get_ema(prices, 32)
         insert.append(derived)
     print("Derived values: ", len(insert))
 

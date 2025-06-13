@@ -51,12 +51,14 @@ void train() {
 }
 
 int main() {
+    // Start date chosen due to it being the first date where 32 period lookback was available
+    constexpr auto start_date = std::chrono::year_month_day{std::chrono::year{2024}, std::chrono::month{9}, std::chrono::day{20}};
 
     auto data = std::make_shared<DataStore>();
 
-    Trader trader(std::make_shared<TSMR>(data), data, 1000000.0f);
+    Trader tsmr_trader(std::make_shared<TSMR>(data), data, 1000000.0f);
 
-    trader.start(std::chrono::year_month_day{std::chrono::year{2020}, std::chrono::month{1}, std::chrono::day{17}});
+    tsmr_trader.start(start_date);
 
     return 0;
 }

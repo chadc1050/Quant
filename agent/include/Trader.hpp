@@ -7,9 +7,6 @@
 #include "Logger/Logger.hpp"
 #include "Model/Signal.hpp"
 
-using Straddle = std::pair<OptionValues, OptionValues>;
-using Straddles = std::unordered_map<OptionId, Straddle>;
-
 enum PositionType {
     SHORT,
     LONG
@@ -33,7 +30,7 @@ struct State {
     std::chrono::year_month_day date;
     std::chrono::year_month_day exp;
     std::unordered_map<std::string, Stock> stocks;
-    Straddles straddles;
+    std::unordered_map<OptionId, Straddle> straddles;
     Portfolio portfolio;
 };
 
@@ -46,8 +43,8 @@ struct Stats {
         unrealized[state.date] = state.portfolio.unrealized;
         liquidity[state.date] = state.portfolio.liquidity;
         for (auto const& position : state.portfolio.positions) {
-            const auto&[call, put] = state.straddles.at(position.id);
-            positions[state.date][position.id] = position.putContracts * call.midpoint() + position.callContracts * put.midpoint();
+            const Straddle straddle = state.straddles.at(position.id);
+            positions[state.date][position.id] = static_cast<float>(position.putContracts) * straddle.call.midpoint() + static_cast<float>(position.callContracts) * straddle.put.midpoint();
         }
     }
 };
@@ -73,7 +70,7 @@ class Trader {
         void updatePositions();
         void createState(std::chrono::year_month_day date);
         void updateState(std::chrono::year_month_day date);
-        std::set<std::string, std::less<>> getAvailableStocks();
+        std::set<std::string> getAvailableStocks();
         std::vector<std::string> getAllowedStocks() const;
         bool shouldClosePosition(const Position& _) const;
 };

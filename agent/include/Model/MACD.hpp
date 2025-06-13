@@ -9,7 +9,7 @@
 class MACD final : public Signal {
     public:
         explicit MACD(std::shared_ptr<DataStore>& data);
-        [[nodiscard]] float signal(const std::string &symbol, std::chrono::year_month_day date) const override;
+        [[nodiscard]] float signal(const int straddle_id, std::chrono::year_month_day date) const override;
 
     private:
         std::shared_ptr<DataStore> data;

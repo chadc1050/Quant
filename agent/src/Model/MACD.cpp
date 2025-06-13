@@ -7,16 +7,18 @@ MACD::MACD(std::shared_ptr<DataStore>& data) {
     this->data = data;
 }
 
-float MACD::signal(const std::string &symbol, const std::chrono::year_month_day date) const {
+float MACD::signal(const int straddle_id, const std::chrono::year_month_day date) const {
 
-    const std::vector<StraddleDerived> history = data->getStraddleDerivedHistory(symbol, date, 20);
+    const std::vector<StraddleDerived> history = data->getStraddleDerivedHistory(straddle_id, date, 20);
 
     if (history.size() < 20) {
-        throw std::runtime_error("Less than 20 derivation records!");
+        warn("Not enough data to calculate MACD!");
+        return 0.0f;
     }
 
     if (history.front().ema.ema32 == 0.0f) {
-        throw std::runtime_error("No EMA32 value!");
+        warn("EMA32 is 0!");
+        return 0.0f;
     }
 
     float X = 0.0f;

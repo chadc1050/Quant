@@ -4,7 +4,7 @@
     const std::shared_ptr<sql::Connection> conn = pool->get();
 
     sql::Statement* statement = conn->createStatement();
-    sql::ResultSet* result = statement->executeQuery("SELECT MIN(date) FROM option_chain");
+    sql::ResultSet* result = statement->executeQuery("SELECT MIN(date) FROM `options`");
 
     result->next();
     const std::string start = result->getString(1);
@@ -18,7 +18,7 @@
 [[nodiscard]] std::optional<std::chrono::year_month_day> DataStore::getNextDate(std::chrono::year_month_day const& date) const {
     const std::shared_ptr<sql::Connection> conn = pool->get();
 
-    sql::PreparedStatement* prepared_statement = conn->prepareStatement("SELECT MIN(date) FROM option_chain WHERE date > ?");
+    sql::PreparedStatement* prepared_statement = conn->prepareStatement("SELECT MIN(date) FROM `options` WHERE date > ?");
     prepared_statement->setString(1, formatDate(date));
     sql::ResultSet* result = prepared_statement->executeQuery();
 
@@ -42,7 +42,7 @@
 [[nodiscard]] std::vector<OptionChain> DataStore::getOptionChain(std::chrono::year_month_day const& date) const {
     const std::shared_ptr<sql::Connection> conn = pool->get();
 
-    sql::PreparedStatement* prepared_statement = conn->prepareStatement("SELECT date, symbol, expiration, strike, option_type, bid, ask, delta FROM option_chain WHERE date = ?");
+    sql::PreparedStatement* prepared_statement = conn->prepareStatement("SELECT date, symbol, expiration, strike, option_type, bid, ask, delta FROM `options` WHERE date = ?");
     prepared_statement->setString(1, formatDate(date));
     sql::ResultSet* result = prepared_statement->executeQuery();
 
@@ -62,7 +62,7 @@
     const std::shared_ptr<sql::Connection> conn = pool->get();
 
     sql::PreparedStatement* prepared_statement = conn->prepareStatement(
-        "SELECT date, symbol, expiration, strike, option_type, bid, ask, delta FROM option_chain WHERE date = ? AND expiration = ?"
+        "SELECT date, symbol, expiration, strike, option_type, bid, ask, delta FROM `options` WHERE date = ? AND expiration = ?"
     );
     prepared_statement->setString(1, formatDate(date));
     prepared_statement->setString(2, formatDate(expiration));
@@ -83,7 +83,7 @@
 [[nodiscard]] std::vector<OptionChain> DataStore::getOptionChain(std::string const& symbol, std::chrono::year_month_day const& date) const {
     const std::shared_ptr<sql::Connection> conn = pool->get();
 
-    sql::PreparedStatement* prepared_statement = conn->prepareStatement("SELECT date, symbol, expiration, strike, option_type, bid, ask, delta FROM option_chain WHERE symbol = ? AND date = ?");
+    sql::PreparedStatement* prepared_statement = conn->prepareStatement("SELECT date, symbol, expiration, strike, option_type, bid, ask, delta FROM `options` WHERE symbol = ? AND date = ?");
     prepared_statement->setString(1, symbol);
     prepared_statement->setString(2, formatDate(date));
     sql::ResultSet* result = prepared_statement->executeQuery();
@@ -100,7 +100,7 @@
     return data;
 }
 
-[[nodiscard]] Straddles DataStore::getStraddles(const std::chrono::year_month_day& date, const std::chrono::year_month_day& expiration) const {
+[[nodiscard]] std::vector<Straddle> DataStore::getStraddles(const std::chrono::year_month_day& date, const std::chrono::year_month_day& expiration) const {
     const std::shared_ptr<sql::Connection> conn = pool->get();
 
     sql::PreparedStatement* prepared_statement = conn->prepareStatement(
@@ -110,25 +110,10 @@
     prepared_statement->setString(2, formatDate(expiration));
     sql::ResultSet* result = prepared_statement->executeQuery();
 
-    Straddles straddles = {};
+    std::vector<Straddle> straddles = {};
 
     while (result->next()) {
-        auto id = OptionId{
-            result->getString("symbol"),
-            parseDate(result->getString("expiration")),
-            static_cast<float>(result->getDouble("strike"))
-        };
-        straddles[id] = std::make_pair(
-            OptionValues{
-                static_cast<float>(result->getDouble("call_bid")),
-                static_cast<float>(result->getDouble("call_ask")),
-                static_cast<float>(result->getDouble("call_delta"))
-            },
-            OptionValues{
-                static_cast<float>(result->getDouble("put_bid")),
-                static_cast<float>(result->getDouble("put_ask")),
-                static_cast<float>(result->getDouble("put_delta"))
-            });
+        straddles.push_back(Straddle::fromResult(result));
     }
 
     delete prepared_statement;
@@ -252,11 +237,11 @@ StandardDeviation DataStore::getStandardDeviation(const std::string& symbol, con
     return std;
 }
 
-StraddleDerived DataStore::getStraddleDerived(const std::string& symbol, const std::chrono::year_month_day date) const {
+StraddleDerived DataStore::getStraddleDerived(const int straddle_id, const std::chrono::year_month_day date) const {
     const std::shared_ptr<sql::Connection> conn = pool->get();
 
-    sql::PreparedStatement* prepared_statement = conn->prepareStatement("SELECT * FROM option_straddle_derived WHERE symbol = ? AND date = ?");
-    prepared_statement->setString(1, symbol);
+    sql::PreparedStatement* prepared_statement = conn->prepareStatement("SELECT * FROM option_straddle_derived WHERE straddle_id = ? AND date = ?");
+    prepared_statement->setInt(1, straddle_id);
     prepared_statement->setString(2, formatDate(date));
     sql::ResultSet* result = prepared_statement->executeQuery();
 
@@ -269,11 +254,11 @@ StraddleDerived DataStore::getStraddleDerived(const std::string& symbol, const s
     return derived;
 }
 
-std::vector<StraddleDerived> DataStore::getStraddleDerivedHistory(const std::string& symbol, const std::chrono::year_month_day from, const int days) const {
+std::vector<StraddleDerived> DataStore::getStraddleDerivedHistory(const int straddle_id, const std::chrono::year_month_day from, const int days) const {
     const std::shared_ptr<sql::Connection> conn = pool->get();
 
-    sql::PreparedStatement* prepared_statement = conn->prepareStatement("SELECT * FROM option_straddle_derived WHERE symbol = ? AND date <= ? ORDER BY date DESC LIMIT = ?");
-    prepared_statement->setString(1, symbol);
+    sql::PreparedStatement* prepared_statement = conn->prepareStatement("SELECT * FROM option_straddle_derived WHERE straddle_id = ? AND date <= ? ORDER BY date DESC LIMIT ?");
+    prepared_statement->setInt(1, straddle_id);
     prepared_statement->setString(2, formatDate(from));
     prepared_statement->setInt(3, days);
     sql::ResultSet* result = prepared_statement->executeQuery();

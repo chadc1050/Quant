@@ -26,6 +26,18 @@ struct OptionId {
     bool operator==(const OptionId &other) const {
         return this->equals(other);
     }
+
+    std::partial_ordering operator <=>(const OptionId &other) const {
+        if (symbol != other.symbol) {
+            return symbol <=> other.symbol;
+        }
+
+        if (expiration != other.expiration) {
+            return expiration <=> other.expiration;
+        }
+
+        return strike <=> other.strike;
+    }
 };
 
 template<>
@@ -81,7 +93,7 @@ struct OptionValues {
     float ask = 0.0;
     float delta = 0.0;
 
-    float midpoint() const {
+    [[nodiscard]] float midpoint() const {
         return (bid + ask) / 2.0f;
     }
 };
@@ -91,20 +103,51 @@ struct OptionChain {
     Option option;
     OptionValues value;
 
-    OptionChain() = default;
-
     static OptionChain fromResult(const sql::ResultSet* result) {
-        OptionChain option;
-        option.date = parseDate(result->getString("date"));
-        option.option.id.symbol = result->getString("symbol");
-        option.option.id.expiration = parseDate(result->getString("expiration"));
-        option.option.id.strike = static_cast<float>(result->getDouble("strike"));
-        option.option.type = static_cast<OptionType>(result->getInt("option_type"));
-        option.value.bid = static_cast<float>(result->getDouble("bid"));
-        option.value.ask = static_cast<float>(result->getDouble("ask"));
-        option.value.delta = static_cast<float>(result->getDouble("delta"));
+        return OptionChain{
+            parseDate(result->getString("date")),
+            Option{
+                OptionId{
+                    result->getString("symbol"),
+                    parseDate(result->getString("expiration")),
+                    static_cast<float>(result->getDouble("strike"))
+                },
+                static_cast<OptionType>(result->getInt("option_type"))
+            },
+            OptionValues{
+                static_cast<float>(result->getDouble("bid")),
+                static_cast<float>(result->getDouble("ask")),
+                static_cast<float>(result->getDouble("delta"))
+            }
+        };
+    }
+};
 
-        return option;
+struct Straddle {
+    int straddle_id;
+    OptionId id;
+    OptionValues call;
+    OptionValues put;
+
+    static Straddle fromResult(const sql::ResultSet* result) {
+        return Straddle{
+            result->getInt("option_straddle_id"),
+            OptionId{
+                result->getString("symbol"),
+                parseDate(result->getString("expiration")),
+                static_cast<float>(result->getDouble("strike"))
+            },
+            OptionValues{
+            static_cast<float>(result->getDouble("call_bid")),
+                static_cast<float>(result->getDouble("call_ask")),
+                static_cast<float>(result->getDouble("call_delta"))
+            },
+            OptionValues{
+                static_cast<float>(result->getDouble("put_bid")),
+                static_cast<float>(result->getDouble("put_ask")),
+                static_cast<float>(result->getDouble("put_delta"))
+            }
+        };
     }
 };
 
@@ -118,16 +161,15 @@ struct Stock {
     float volume;
 
     static Stock fromResult(const sql::ResultSet* result) {
-        Stock stock;
-        stock.date = parseDate(result->getString("date"));
-        stock.symbol = result->getString("symbol");
-        stock.open = static_cast<float>(result->getDouble("open"));
-        stock.high = static_cast<float>(result->getDouble("high"));
-        stock.low = static_cast<float>(result->getDouble("low"));
-        stock.close = static_cast<float>(result->getDouble("close"));
-        stock.volume = static_cast<float>(result->getDouble("volume"));
-
-        return stock;
+        return Stock{
+            parseDate(result->getString("date")),
+            result->getString("symbol"),
+            static_cast<float>(result->getDouble("open")),
+            static_cast<float>(result->getDouble("high")),
+            static_cast<float>(result->getDouble("low")),
+            static_cast<float>(result->getDouble("close")),
+            static_cast<float>(result->getDouble("volume"))
+        };
     }
 };
 
@@ -139,13 +181,13 @@ struct SimpleMovingAverages {
     float sma32;
 
     static SimpleMovingAverages fromResult(const sql::ResultSet* result) {
-        SimpleMovingAverages sma;
-        sma.sma2 = static_cast<float>(result->getDouble("sma2"));
-        sma.sma4 = static_cast<float>(result->getDouble("sma4"));
-        sma.sma8 = static_cast<float>(result->getDouble("sma8"));
-        sma.sma16 = static_cast<float>(result->getDouble("sma16"));
-        sma.sma32 = static_cast<float>(result->getDouble("sma32"));
-        return sma;
+        return SimpleMovingAverages{
+            static_cast<float>(result->getDouble("sma2")),
+            static_cast<float>(result->getDouble("sma4")),
+            static_cast<float>(result->getDouble("sma8")),
+            static_cast<float>(result->getDouble("sma16")),
+            static_cast<float>(result->getDouble("sma32"))
+        };
     }
 };
 
@@ -157,13 +199,13 @@ struct ExpMovingAverages {
     float ema32;
 
     static ExpMovingAverages fromResult(const sql::ResultSet* result) {
-        ExpMovingAverages ema;
-        ema.ema2 = static_cast<float>(result->getDouble("ema2"));
-        ema.ema4 = static_cast<float>(result->getDouble("ema4"));
-        ema.ema8 = static_cast<float>(result->getDouble("ema8"));
-        ema.ema16 = static_cast<float>(result->getDouble("ema16"));
-        ema.ema32 = static_cast<float>(result->getDouble("ema32"));
-        return ema;
+        return ExpMovingAverages{
+            static_cast<float>(result->getDouble("ema2")),
+            static_cast<float>(result->getDouble("ema4")),
+            static_cast<float>(result->getDouble("ema8")),
+            static_cast<float>(result->getDouble("ema16")),
+            static_cast<float>(result->getDouble("ema32"))
+        };
     }
 };
 
@@ -176,14 +218,14 @@ struct StandardDeviation {
     float std30;
 
     static StandardDeviation fromResult(const sql::ResultSet* result) {
-        StandardDeviation std;
-        std.std5 = static_cast<float>(result->getDouble("std5"));
-        std.std10 = static_cast<float>(result->getDouble("std10"));
-        std.std15 = static_cast<float>(result->getDouble("std15"));
-        std.std20 = static_cast<float>(result->getDouble("std20"));
-        std.std25 = static_cast<float>(result->getDouble("std25"));
-        std.std30 = static_cast<float>(result->getDouble("std30"));
-        return std;
+        return StandardDeviation{
+        static_cast<float>(result->getDouble("std5")),
+            static_cast<float>(result->getDouble("std10")),
+            static_cast<float>(result->getDouble("std15")),
+            static_cast<float>(result->getDouble("std20")),
+            static_cast<float>(result->getDouble("std25")),
+            static_cast<float>(result->getDouble("std30"))
+        };
     }
 };
 
@@ -196,15 +238,14 @@ struct Return {
     float ret30;
 
     static Return fromResult(const sql::ResultSet* result) {
-        Return ret;
-        ret.ret5 = static_cast<float>(result->getDouble("ret5"));
-        ret.ret10 = static_cast<float>(result->getDouble("ret10"));
-        ret.ret15 = static_cast<float>(result->getDouble("ret15"));
-        ret.ret20 = static_cast<float>(result->getDouble("ret20"));
-        ret.ret25 = static_cast<float>(result->getDouble("ret25"));
-        ret.ret30 = static_cast<float>(result->getDouble("ret30"));
-
-        return ret;
+        return Return{
+            static_cast<float>(result->getDouble("ret5")),
+            static_cast<float>(result->getDouble("ret10")),
+            static_cast<float>(result->getDouble("ret15")),
+            static_cast<float>(result->getDouble("ret20")),
+            static_cast<float>(result->getDouble("ret25")),
+            static_cast<float>(result->getDouble("ret30"))
+        };
     }
 };
 
@@ -216,12 +257,12 @@ struct StraddleDerived {
     Return ret;
 
     static StraddleDerived fromResult(const sql::ResultSet* result) {
-        StraddleDerived straddle;
-        straddle.date = parseDate(result->getString("date"));
-        straddle.sma = SimpleMovingAverages::fromResult(result);
-        straddle.ema = ExpMovingAverages::fromResult(result);
-        straddle.std = StandardDeviation::fromResult(result);
-        straddle.ret = Return::fromResult(result);
-        return straddle;
+        return StraddleDerived{
+            parseDate(result->getString("date")),
+            SimpleMovingAverages::fromResult(result),
+            ExpMovingAverages::fromResult(result),
+            StandardDeviation::fromResult(result),
+            Return::fromResult(result)
+        };
     }
 };

@@ -75,29 +75,26 @@ void Trader::openPositions() {
 
     // Scan to consist of only S&P 100 Companies (Due to diversification and high liquidity).
     // Will be for ATM straddled contracts such that call and put delta are the same weight.
-    const std::set<std::string, std::less<>> available = getAvailableStocks();
+    std::vector<Straddle> scanned = {};
 
-    std::vector<std::string> allowed = getAllowedStocks();
-
-    std::vector<std::string> symbols = {};
-
-    for (const auto & symbol : available) {
-        if (std::ranges::find(allowed, symbol) != allowed.end()) {
-            symbols.push_back(symbol);
+    for (const std::string& allowed : getAllowedStocks()) {
+        for (const auto& straddle: this->state.straddles) {
+            if (straddle.second.id.symbol == allowed) {
+                scanned.emplace_back(straddle.second);
+            }
         }
     }
 
-    const float allocation = this->state.portfolio.liquidity / symbols.size();
+    const float allocation = this->state.portfolio.liquidity / static_cast<float>(scanned.size());
 
-    if (symbols.size() < 15) {
-        warn(std::format("Low diversification in positions available ({})! Skipping!", symbols.size()));
+    if (scanned.size() < 15) {
+        warn(std::format("Low diversification in positions available ({})! Skipping!", scanned.size()));
         return;
     }
 
-    for (std::string& symbol : symbols) {
+    for (const Straddle& straddle: scanned) {
 
-        // TODO: This should pass all the information needed to feed the model
-        const float indicator = signal->signal(symbol, this->state.date);
+        const float indicator = signal->signal(straddle.straddle_id, this->state.date);
 
         debug(std::format("Signal strength: {}", indicator));
 
@@ -107,10 +104,11 @@ void Trader::openPositions() {
 
         const float positioning = indicator * allocation;
 
-        for (auto &[id, options] : state.straddles) {
-            if (id.symbol == symbol) {
+        for (const auto&[id, options] : state.straddles) {
+            if (id == straddle.id) {
                 // Construct delta neutral allocation
-                auto&[call, put] = options;
+                const OptionValues& call = options.call;
+                const OptionValues& put = options.put;
                 const float totalDelta = call.delta - put.delta;
 
                 const float callPrice = call.midpoint() * 100;
@@ -151,11 +149,13 @@ void Trader::openPositions() {
 }
 
 void Trader::closePositions(const bool force) {
+
     if (force) {
         warn("Force closing positions!");
     } else {
         debug("Checking for positions to close...");
     }
+
     int nClosed = 0;
     for (auto position = state.portfolio.positions.rbegin(); position != state.portfolio.positions.rend();) {
         if (force || shouldClosePosition(*position)) {
@@ -165,9 +165,12 @@ void Trader::closePositions(const bool force) {
             }
 
             // Close out the position
-            const auto&[call, put] = state.straddles[position->id];
+            const Straddle straddle = state.straddles[position->id];
 
-            const float price = position->callContracts * call.midpoint() * 100 + position->putContracts * put.midpoint() * 100;
+
+            OptionValues call = straddle.call;
+            OptionValues put = straddle.put;
+            const float price = static_cast<float>(position->callContracts) * call.midpoint() * 100 + static_cast<float>(position->putContracts) * put.midpoint() * 100;
 
             if (position->type == LONG) {
                 this->state.portfolio.liquidity += price;
@@ -198,9 +201,9 @@ void Trader::updatePositions() {
             throw std::runtime_error(std::format("No straddle found for position {}", position.id.symbol));
         }
 
-        auto const&[call, put] = this->state.straddles[position.id];
-        reprice += position.callContracts * call.midpoint() * 100;
-        reprice += position.putContracts * put.midpoint() * 100;
+        const OptionValues& call = this->state.straddles[position.id].call;
+        const OptionValues& put = this->state.straddles[position.id].put;
+        reprice += static_cast<float>(position.callContracts) * call.midpoint() * 100 + static_cast<float>(position.putContracts) * put.midpoint() * 100;
     }
 
     state.portfolio.unrealized = reprice;
@@ -226,15 +229,22 @@ void Trader::createState(const std::chrono::year_month_day date) {
 
     this->state.straddles.clear();
 
-    Straddles straddles = data->getStraddles(this->state.date, this->state.exp);
+    std::vector<Straddle> res = data->getStraddles(this->state.date, this->state.exp);
+
+    std::unordered_map<OptionId, Straddle> straddles = {};
+
+    for (const Straddle& straddle: res) {
+        straddles[straddle.id] = straddle;
+    }
 
     std::unordered_map<std::string, float> strikes = {};
 
     // NOTE: The data I am using for does not contain the open interest but ensuring positive open interest would be ideal
     for (auto straddle = straddles.begin(); straddle != straddles.end();) {
 
-        const auto&[call, put] = straddle->second;
-        auto id = straddle->first;
+        const auto it = straddle;
+
+        OptionId id = straddle->first;
         // Swap existing if there is an option more at the money
         if (strikes.contains(id.symbol)) {
             if (const auto existing = strikes[id.symbol]; existing != id.strike) {
@@ -242,40 +252,51 @@ void Trader::createState(const std::chrono::year_month_day date) {
                 const float chainAtmRatio = open / id.strike;
                 const float existingAtmRatio = open / existing;
 
-                if (std::abs(1 - chainAtmRatio) < std::abs(1 - existingAtmRatio)) {
-                    straddles.erase(straddle);
+                if (std::abs(1 - existingAtmRatio) < std::abs(1 - chainAtmRatio)) {
                     ++straddle;
+                    straddles.erase(it);
                     continue;
                 }
+
+                const OptionValues call = straddle->second.call;
+                const OptionValues put = straddle->second.put;
 
                 // Exclude non-American option price bounds.
                 if (call.bid == 0 || put.bid == 0 || call.ask <= call.bid || put.ask <= put.bid) {
-                    straddles.erase(straddle);
                     ++straddle;
+                    straddles.erase(it);
                     continue;
                 }
 
+                ++straddle;
                 straddles.erase(OptionId{id.symbol, this->state.exp, existing});
+                strikes[id.symbol] = id.strike;
                 continue;
             }
         }
 
+        const OptionValues call = straddle->second.call;
+        const OptionValues put = straddle->second.put;
+
         // Exclude non-American option price bounds.
         if (call.bid == 0 || put.bid == 0 || call.ask <= call.bid || put.ask <= put.bid) {
             ++straddle;
-            straddles.erase(straddle);
+            straddles.erase(it);
             continue;
         }
 
         // Exclude options that are not ATM
         if (const float open = this->state.stocks[id.symbol].open; id.strike < 0.95 * open || id.strike > 1.05 * open) {
             ++straddle;
-            straddles.erase(straddle);
+            straddles.erase(it);
             continue;
         }
 
         strikes[id.symbol] = id.strike;
+        ++straddle;
     }
+
+    this->state.straddles = straddles;
 }
 
 void Trader::updateState(const std::chrono::year_month_day date) {
@@ -283,26 +304,34 @@ void Trader::updateState(const std::chrono::year_month_day date) {
 
     this->state.date = date;
 
-    std::vector<Stock> stocks = data->getStocks(this->state.date);
+    const std::vector<Stock> stocks = data->getStocks(this->state.date);
 
     this->state.stocks.clear();
-    for (auto stock = stocks.begin(); stock != stocks.end(); ++stock) {
-        this->state.stocks[stock->symbol] = *stock;
+    for (const Stock& stock : stocks) {
+        this->state.stocks[stock.symbol] = stock;
     }
 
-    std::vector<OptionChain> optionChains = data->getOptionChain(this->state.date, this->state.exp);
+    const std::vector<Straddle> res = data->getStraddles(this->state.date, this->state.exp);
 
-    for (auto chain = optionChains.begin(); chain != optionChains.end(); ++chain) {
-        if (chain->option.type == OptionType::CALL) {
-            this->state.straddles[chain->option.id].first = chain->value;
-        } else if (chain->option.type == OptionType::PUT) {
-            this->state.straddles[chain->option.id].second = chain->value;
+    std::unordered_map<OptionId, Straddle> straddles = {};
+
+    for (const Straddle& straddle: res) {
+        straddles[straddle.id] = straddle;
+    }
+
+    // Update existing straddles
+    for (const auto &id: straddles | std::views::keys) {
+
+        if (straddles.contains(id)) {
+            this->state.straddles[id];
+        } else {
+            warn(std::format("Straddle for {} not found!", id.symbol));
         }
     }
 }
 
-std::set<std::string, std::less<>> Trader::getAvailableStocks() {
-    std::set<std::string, std::less<>> availableTickers = {};
+std::set<std::string> Trader::getAvailableStocks() {
+    std::set<std::string> availableTickers = {};
     for (const auto &id: state.straddles | std::views::keys) {
         availableTickers.insert(id.symbol);
     }

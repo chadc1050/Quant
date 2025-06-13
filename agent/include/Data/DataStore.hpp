@@ -12,9 +12,6 @@
 #include "cppconn/resultset.h"
 #include "mysql_connection.h"
 
-using Straddle = std::pair<OptionValues, OptionValues>;
-using Straddles = std::unordered_map<OptionId, Straddle>;
-
 struct DataStore {
     std::shared_ptr<ConnectionPool<10>> pool = std::make_shared<ConnectionPool<10>>();
 
@@ -28,7 +25,7 @@ struct DataStore {
 
     [[nodiscard]] std::vector<OptionChain> getOptionChain(std::string const& symbol, std::chrono::year_month_day const& date) const;
 
-    [[nodiscard]] Straddles getStraddles(const std::chrono::year_month_day &date, const std::chrono::year_month_day &expiration) const;
+    [[nodiscard]] std::vector<Straddle> getStraddles(const std::chrono::year_month_day &date, const std::chrono::year_month_day &expiration) const;
 
     [[nodiscard]] std::vector<Stock> getStocks(std::chrono::year_month_day const& date) const;
 
@@ -42,7 +39,7 @@ struct DataStore {
 
     [[nodiscard]] StandardDeviation getStandardDeviation(const std::string& symbol, std::chrono::year_month_day date) const;
 
-    [[nodiscard]] StraddleDerived getStraddleDerived(const std::string& symbol, std::chrono::year_month_day date) const;
+    [[nodiscard]] StraddleDerived getStraddleDerived(int straddle_id, std::chrono::year_month_day date) const;
 
-    [[nodicard]] std::vector<StraddleDerived> getStraddleDerivedHistory(const std::string& symbol, std::chrono::year_month_day from, int days) const;
+    [[nodicard]] std::vector<StraddleDerived> getStraddleDerivedHistory(int straddle_id, std::chrono::year_month_day from, int days) const;
 };
